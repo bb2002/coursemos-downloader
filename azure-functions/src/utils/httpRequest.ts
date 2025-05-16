@@ -12,15 +12,28 @@ type HttpRequestFunction = (
   context: InvocationContext
 ) => Promise<HttpResponseInit>;
 
-type HttpRequestParams<T> = {
+export type HttpRequestParams<T> = {
   request: HttpRequest;
   context: InvocationContext;
   body: T;
 };
 
+function isHttpResponseInit(obj: any): obj is HttpResponseInit {
+  return (
+    typeof obj === "object" &&
+    obj !== null &&
+    ("body" in obj ||
+      "jsonBody" in obj ||
+      "status" in obj ||
+      "headers" in obj ||
+      "cookies" in obj ||
+      "enableContentNegotiation" in obj)
+  );
+}
+
 export function httpRequest<T extends object>(
   inDto: ClassConstructor<T>,
-  fun: (params: HttpRequestParams<T>) => Promise<HttpResponseInit>
+  fun: (params: HttpRequestParams<T>) => Promise<object | HttpResponseInit>
 ): HttpRequestFunction {
   return async (request: HttpRequest, context: InvocationContext) => {
     let body: T;
@@ -29,11 +42,27 @@ export function httpRequest<T extends object>(
       body = plainToInstance(inDto, raw);
       await validateOrReject(body);
     } catch (ex) {
+      if (Array.isArray(ex)) {
+        const messages = ex.flatMap((e) => Object.values(e.constraints || {}));
+        return {
+          status: 400,
+          body: JSON.stringify({
+            error: "Bad Request",
+            message: messages.join(", "),
+          }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        };
+      }
       return {
         status: 400,
-        body: {
+        body: JSON.stringify({
           error: "Bad Request",
-          message: "Invalid request body",
+          message: "Invalid request",
+        }),
+        headers: {
+          "Content-Type": "application/json",
         },
       };
     }
@@ -41,28 +70,45 @@ export function httpRequest<T extends object>(
     let result: HttpResponseInit;
     try {
       result = await fun({ request, context, body });
+      if (isHttpResponseInit(result)) {
+        return {
+          ...result,
+          headers: {
+            "Content-Type": "application/json",
+            ...result.headers,
+          },
+        };
+      }
+
       return {
-        ...result,
+        status: 200,
+        body: JSON.stringify(result),
         headers: {
           "Content-Type": "application/json",
-          ...result.headers,
         },
       };
     } catch (ex) {
+      context.error(ex);
       if (ex instanceof HttpException) {
         return {
           status: ex.status,
-          body: {
+          body: JSON.stringify({
             message: ex.message,
             details: ex.details,
+          }),
+          headers: {
+            "Content-Type": "application/json",
           },
         };
       }
 
       return {
         status: 500,
-        body: {
+        body: JSON.stringify({
           message: "Internal Server Error",
+        }),
+        headers: {
+          "Content-Type": "application/json",
         },
       };
     }

@@ -1,25 +1,27 @@
-import {
-  app,
-  HttpRequest,
-  HttpResponseInit,
-  InvocationContext,
-} from "@azure/functions";
+import { app } from "@azure/functions";
 import { RequestEnqueueVideoDownload } from "../dtos/EnqueueVideoDownload.dto";
+import { httpRequest, HttpRequestParams } from "../utils/httpRequest";
+import { getOrCreateQueue, sendMessage } from "../utils/queue";
 
-const enqueueVideoDownload = httpRequest<RequestEnqueueVideoDownload>(
-  async () => {}
-);
+const QUEUE_NAME = "video-downloads";
 
-// export async function enqueueVideoDownload(
-//   request: HttpRequest,
-//   context: InvocationContext
-// ): Promise<HttpResponseInit> {
-//   const json = await request.json();
+async function handler({
+  body,
+}: HttpRequestParams<RequestEnqueueVideoDownload>) {
+  const queue = await getOrCreateQueue(QUEUE_NAME);
+  await sendMessage(queue, {
+    installationId: body.installationId,
+    mediaUrl: body.mediaUrl,
+  });
 
-// }
+  return null;
+}
 
 app.http("enqueueVideoDownload", {
   methods: ["POST"],
   authLevel: "anonymous",
-  handler: enqueueVideoDownload,
+  handler: httpRequest<RequestEnqueueVideoDownload>(
+    RequestEnqueueVideoDownload,
+    handler
+  ),
 });
