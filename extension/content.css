@@ -1,0 +1,14 @@
+#coursemos-download-btn {
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 14px;
+  float: right;
+  padding: 10px 20px;
+  margin-top: 4px;
+}
+
+#coursemos-download-btn.active {
+  cursor: pointer;
+  pointer-events: auto;
+  opacity: 1;
+}
