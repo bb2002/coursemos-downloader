@@ -13,29 +13,30 @@ import {
   QUEUE_NAME,
   VIDEO_PROCESS_REQUESTS_TABLE,
 } from "../utils/constant";
-import { isContext } from "vm";
 import hash from "../utils/hash";
 
 interface InsertVideoProcessRequestParams {
-  installationId: string;
+  partitionKey: string;
+  rowKey: string;
+  ipAddress: string | null;
   blobId: string;
-  ipAddress: string;
   status: string;
 }
 
 export async function insertVideoProcessRequest({
-  installationId,
-  blobId,
+  partitionKey,
+  rowKey,
   ipAddress,
   status,
+  blobId
 }: InsertVideoProcessRequestParams) {
   const client = await getOrCreateTable(VIDEO_PROCESS_REQUESTS_TABLE);
   return client.createEntity({
-    partitionKey: installationId,
-    rowKey: randomString(32),
-    blobId: blobId,
-    ipAddress: ipAddress,
-    status: status,
+    partitionKey,
+    rowKey,
+    blobId,
+    ipAddress,
+    status,
   });
 }
 
@@ -87,6 +88,7 @@ export async function getLatestProcessedVideo(mediaUrl: string) {
 async function fun({
   body,
   request,
+  context
 }: HttpRequestParams<RequestEnqueueVideoDownload>) {
   const latestRequest = await getLatestVideoProcessRequest(body.installationId);
   if (latestRequest) {
@@ -98,29 +100,30 @@ async function fun({
       throw new TooManyRequestsError();
     }
   }
-  console.log("latestRequest", latestRequest);
 
   const latestProcessedVideo = await getLatestProcessedVideo(body.mediaUrl);
-  const blobId = randomString(32);
+  const blobId = latestProcessedVideo ? latestProcessedVideo.rowKey : randomString(32);
   if (!latestProcessedVideo) {
     const queue = await getOrCreateQueue(QUEUE_NAME);
     await sendMessage(queue, {
-      installationId: body.installationId,
+      partitionKey: body.installationId,
+      rowKey: context.invocationId,
       mediaUrl: body.mediaUrl,
-      blobId: blobId,
-      mediaName: body.mediaName,
+      blobId: blobId
     } as VideoProcessQueueItem);
   }
-  console.log("latestProcessedVideo", latestProcessedVideo);
 
-  const data = {
-    installationId: body.installationId,
-    blobId: latestProcessedVideo ? latestProcessedVideo.rowKey : blobId,
+  await insertVideoProcessRequest({
+    partitionKey: body.installationId,
+    rowKey: context.invocationId,
+    blobId,
     ipAddress: getIPAddress(request),
     status: latestProcessedVideo ? "COMPLETED" : "QUEUED",
+  });
+
+  return {
+    blobId
   };
-  await insertVideoProcessRequest(data);
-  return data;
 }
 
 app.http("enqueueVideoDownload", {

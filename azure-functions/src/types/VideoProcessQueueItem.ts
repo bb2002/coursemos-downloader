@@ -1,6 +1,6 @@
 export default interface VideoProcessQueueItem {
-  installationId: string;
+  partitionKey: string;
+  rowKey: string;
   mediaUrl: string;
   blobId: string;
-  mediaName: string;
 }

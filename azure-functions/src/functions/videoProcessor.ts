@@ -19,51 +19,48 @@ const execFileAsync = promisify(execFile);
 const CONTAINER_NAME = "videos";
 
 interface UpdateVideoProcessResultParams {
-  installationId: string;
-  blobId: string;
+  partitionKey: string;
+  rowKey: string;
   status?: string;
 }
 
 interface InsertVideoProcessRequestParams {
-  mediaUrl: string;
-  blobId: string;
-  mediaName: string;
-  sasUrl?: string;
+  partitionKey: string;
+  rowKey: string;
+  sasUrl: string;
 }
 
 export async function updateVideoProcessResult({
-  blobId,
-  installationId,
+  partitionKey,
+  rowKey,
   status,
 }: UpdateVideoProcessResultParams) {
   const client = await getOrCreateTable(VIDEO_PROCESS_REQUESTS_TABLE);
   return client.updateEntity(
     {
-      partitionKey: installationId,
-      rowKey: blobId,
-      status: status,
+      partitionKey,
+      rowKey,
+      status,
     },
     "Merge"
   );
 }
 
 export async function insertProcessedVideo({
-  blobId,
-  mediaUrl,
+  partitionKey,
+  rowKey,
   sasUrl,
-  mediaName,
 }: InsertVideoProcessRequestParams) {
   const client = await getOrCreateTable(PROCESSES_VIDEO_TABLE);
   return client.createEntity({
-    partitionKey: hash(mediaUrl),
-    rowKey: blobId,
-    sasUrl: sasUrl,
-    mediaName,
+    partitionKey,
+    rowKey,
+    sasUrl,
   });
 }
 
 export async function videoProcessor(
-  { installationId, mediaUrl, blobId, mediaName }: VideoProcessQueueItem,
+  { partitionKey, rowKey, mediaUrl, blobId }: VideoProcessQueueItem,
   context: InvocationContext
 ): Promise<void> {
   const baseUrl = `${mediaUrl.substring(0, mediaUrl.lastIndexOf("/") + 1)}`;
@@ -85,15 +82,15 @@ export async function videoProcessor(
 
   if (filenameFormat === null) {
     await updateVideoProcessResult({
-      installationId: installationId,
-      blobId: blobId,
+      partitionKey,
+      rowKey,
       status: "FILRNAME_FORMAT_FAULT",
     });
     return;
   } else {
     await updateVideoProcessResult({
-      installationId: installationId,
-      blobId: blobId,
+      partitionKey,
+      rowKey,
       status: "DOWNLOADING",
     });
   }
@@ -125,15 +122,15 @@ export async function videoProcessor(
       }
 
       await updateVideoProcessResult({
-        installationId: installationId,
-        blobId: blobId,
+        partitionKey,
+        rowKey,
         status: "DOWNLOAD_FAILED_WITH_" + res.status,
       });
       return;
     } catch (ex) {
       await updateVideoProcessResult({
-        installationId: installationId,
-        blobId: blobId,
+        partitionKey,
+        rowKey,
         status: "DOWNLOAD_FAILED_NETWORK_ERROR",
       });
       return;
@@ -150,8 +147,8 @@ export async function videoProcessor(
   const ffmpegPath = path.join(__dirname, "..", "bin", "ffmpeg");
   const outputPath = path.join(tempDir, "output.mp4");
   await updateVideoProcessResult({
-    installationId: installationId,
-    blobId: blobId,
+    partitionKey,
+    rowKey,
     status: "ENCODING",
   });
 
@@ -170,8 +167,8 @@ export async function videoProcessor(
   } catch (ex) {
     context.error("FFmpeg execution failed", ex);
     await updateVideoProcessResult({
-      installationId: installationId,
-      blobId: blobId,
+      partitionKey,
+      rowKey,
       status: "ENCODING_FAULT",
     });
     return;
@@ -183,14 +180,13 @@ export async function videoProcessor(
   const sasUrl = await generateSASUrl(CONTAINER_NAME, uploadedBlobName);
   await Promise.all([
     updateVideoProcessResult({
-      installationId: installationId,
-      blobId: blobId,
+      partitionKey,
+      rowKey,
       status: "COMPLETED",
     }),
     insertProcessedVideo({
-      mediaUrl: mediaUrl,
-      blobId: blobId,
-      mediaName: mediaName,
+      partitionKey: hash(mediaUrl),
+      rowKey: blobId,
       sasUrl,
     }),
   ]);
