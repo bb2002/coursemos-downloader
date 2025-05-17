@@ -38,3 +38,9 @@ export class NotFoundError extends HttpException {
     super(404, "Not Found Error", details);
   }
 }
+
+export class TooManyRequestsError extends HttpException {
+  constructor(details?: object) {
+    super(429, "Too Many Requests Error", details);
+  }
+}

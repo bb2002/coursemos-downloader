@@ -8,13 +8,19 @@
     "clean": "rimraf dist",
     "prestart": "npm run clean && npm run build",
     "start": "func start",
-    "test": "echo \"No tests yet...\""
+    "test": "echo \"No tests yet...\"",
+    "postbuild": "mkdir -p dist/src/bin && cp src/bin/ffmpeg dist/src/bin/ffmpeg && chmod 755 dist/src/bin/ffmpeg"
   },
   "dependencies": {
+    "@azure/data-tables": "^13.3.0",
     "@azure/functions": "^4.0.0",
+    "@azure/storage-blob": "^12.27.0",
     "@azure/storage-queue": "^12.26.0",
+    "@types/node-fetch": "^2.6.12",
+    "axios": "^1.9.0",
     "class-transformer": "^0.5.1",
-    "class-validator": "^0.14.2"
+    "class-validator": "^0.14.2",
+    "date-fns": "^2.29.3"
   },
   "devDependencies": {
     "@types/node": "^20.x",

@@ -70,16 +70,6 @@ export function httpRequest<T extends object>(
     let result: HttpResponseInit;
     try {
       result = await fun({ request, context, body });
-      if (isHttpResponseInit(result)) {
-        return {
-          ...result,
-          headers: {
-            "Content-Type": "application/json",
-            ...result.headers,
-          },
-        };
-      }
-
       return {
         status: 200,
         body: JSON.stringify(result),

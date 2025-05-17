@@ -1,4 +1,4 @@
-import { IsUrl, IsUUID, Matches } from "class-validator";
+import { IsString, IsUrl, IsUUID, Matches } from "class-validator";
 
 export class RequestEnqueueVideoDownload {
   @IsUUID()
@@ -7,4 +7,7 @@ export class RequestEnqueueVideoDownload {
   @IsUrl()
   @Matches(/\.(mp4|ts)$/i, { message: "mediaUrl must end with .mp4 or .ts" })
   mediaUrl: string;
+
+  @IsString()
+  mediaName: string;
 }
